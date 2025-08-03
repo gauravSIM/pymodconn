@@ -137,3 +137,57 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+saved_models/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.pdf
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
+# Development and testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+bandit-report.json
+safety-report.json
+
+# Pre-commit
+.pre-commit-cache/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# TensorFlow/Keras specific
+*.pb
+*.pbtxt
+checkpoints/
+logs/
+tensorboard_logs/
