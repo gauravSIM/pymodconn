@@ -1,6 +1,6 @@
 import tensorflow as tf
 from pymodconn.keras_tcn import TCN
-from pymodconn.utils_layers import GLU_with_ADDNORM, ADD_NORM
+from pymodconn.utils_layers import GLUWithAddNorm, AddNorm
 
 K = tf.keras.backend
 
@@ -34,14 +34,14 @@ class TCN_addnorm_class():
 			output_cell = tcn_block(input_cell)
 
 			if self.IF_NONE_GLUADDNORM_ADDNORM == 1:
-				output_cell = GLU_with_ADDNORM(            
+				output_cell = GLUWithAddNorm(            
 									output_layer_size=self.all_layers_neurons,
 									dropout_rate=self.all_layers_dropout,
 									use_time_distributed=False,
 									activation=None)(input_cell, output_cell)
 				
 			elif self.IF_NONE_GLUADDNORM_ADDNORM == 2:
-				output_cell = ADD_NORM()(input_cell, output_cell)
+				output_cell = AddNorm()(input_cell, output_cell)
 
 			return output_cell
 		else:

@@ -79,4 +79,3 @@ class Decoder_class():
 			tf.keras.layers.Dense(self.unknown_future_features))(output_cell)
 
 		return output_cell
-

@@ -1,182 +1,364 @@
-from typing import *
+"""Utility layers module for PyModConn."""
+
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import tensorflow as tf
+
 K = tf.keras.backend
 
-def soft_relu(x):
-	"""
-	Soft ReLU activation function, used for ensuring the positivity of the standard deviation of the Normal distribution
-	when using the parameteric loss function. See Section 3.2.2 in the DeepTCN paper.
-	"""
-	return tf.math.log(1.0 + tf.math.exp(x))
+
+def soft_relu(x: tf.Tensor) -> tf.Tensor:
+    """
+    Soft ReLU activation function for ensuring positive standard deviation.
+    
+    This function is used to ensure the positivity of the standard deviation
+    of the Normal distribution when using the parametric loss function.
+    See Section 3.2.2 in the DeepTCN paper.
+    
+    Args:
+        x: Input tensor
+        
+    Returns:
+        Tensor with soft ReLU activation applied
+    """
+    return tf.math.log(1.0 + tf.math.exp(x))
 
 
-class linear_layer(tf.keras.layers.Layer):
-	def __init__(self, hidden_layer_size, activation=None, use_time_distributed=False, use_bias=True):
-		super().__init__()
-		self.use_time_distributed = use_time_distributed
-		self.activation = activation
-		self.use_bias = use_bias
-		self.hidden_layer_size = hidden_layer_size
-		self.dense_layer = tf.keras.layers.Dense(self.hidden_layer_size, activation=self.activation, use_bias=self.use_bias)
-		self.td_layer = tf.keras.layers.TimeDistributed(self.dense_layer)	
+class LinearLayer(tf.keras.layers.Layer):
+    """
+    Linear (Dense) layer with optional time distribution.
+    
+    This layer provides a wrapper around Dense layer with optional
+    TimeDistributed functionality for sequence processing.
+    
+    Args:
+        hidden_layer_size: Number of units in the dense layer
+        activation: Activation function to use
+        use_time_distributed: Whether to apply TimeDistributed wrapper
+        use_bias: Whether to use bias in the dense layer
+    """
 
-	def call(self, x, training=False):
+    def __init__(
+        self,
+        hidden_layer_size: int,
+        activation: Optional[str] = None,
+        use_time_distributed: bool = False,
+        use_bias: bool = True,
+        **kwargs
+    ) -> None:
+        """Initialize LinearLayer with specified parameters."""
+        super().__init__(**kwargs)
+        self.use_time_distributed = use_time_distributed
+        self.activation = activation
+        self.use_bias = use_bias
+        self.hidden_layer_size = hidden_layer_size
+        
+        self.dense_layer = tf.keras.layers.Dense(
+            self.hidden_layer_size, 
+            activation=self.activation, 
+            use_bias=self.use_bias
+        )
+        self.td_layer = tf.keras.layers.TimeDistributed(self.dense_layer)
 
-		if self.use_time_distributed:
-			x = self.td_layer(x)
-		else:
-			x = self.dense_layer(x)
-		return x
-	
-	def get_config(self):
-		config = super().get_config().copy()
-		config.update({
-			'hidden_layer_size': self.hidden_layer_size,
-			'activation': self.activation,
-			'use_time_distributed': self.use_time_distributed,
-			'use_bias': self.use_bias,
-		})
-		return config
+    def call(self, x: tf.Tensor, training: bool = False) -> tf.Tensor:
+        """
+        Forward pass through the layer.
+        
+        Args:
+            x: Input tensor
+            training: Whether in training mode
+            
+        Returns:
+            Output tensor after applying dense layer
+        """
+        if self.use_time_distributed:
+            return self.td_layer(x)
+        else:
+            return self.dense_layer(x)
+
+    def get_config(self) -> Dict[str, Any]:
+        """Get layer configuration for serialization."""
+        config = super().get_config().copy()
+        config.update({
+            "hidden_layer_size": self.hidden_layer_size,
+            "activation": self.activation,
+            "use_time_distributed": self.use_time_distributed,
+            "use_bias": self.use_bias,
+        })
+        return config
 
 
-class GRN_layer(tf.keras.layers.Layer):
-	"""
-	Applies the gated residual network (GRN) as defined in the TFT paper
-	
-	Adapted from 
-	https://github.com/greatwhiz/tft_tf2/blob/HEAD/libs/tft_model.py
-	"""
-	def __init__(self, hidden_layer_size, output_size, dropout_rate=None, use_time_distributed=False, activation_layer_type='elu'):
-		super().__init__()
-		self.hidden_layer_size = hidden_layer_size
-		self.output_size = output_size
-		self.dropout_rate = dropout_rate
-		self.use_time_distributed = use_time_distributed
-		self.activation_layer_type = activation_layer_type
-		self.linear_layer1 = linear_layer(self.hidden_layer_size,
-										activation=None,
-										use_time_distributed=self.use_time_distributed)
-		self.linear_layer2 = linear_layer(self.hidden_layer_size,
-										activation=None,
-										use_time_distributed=self.use_time_distributed)
-		
-		self.activation_layer = tf.keras.layers.Activation(self.activation_layer_type)
-		
-		self.gluwithaddnorm = GLU_with_ADDNORM(self.output_size, self.dropout_rate, self.use_time_distributed, None)
+class GRNLayer(tf.keras.layers.Layer):
+    """
+    Gated Residual Network (GRN) layer as defined in the TFT paper.
+    
+    This layer applies gated residual connections with normalization,
+    commonly used in Temporal Fusion Transformer architectures.
+    
+    Adapted from:
+    https://github.com/greatwhiz/tft_tf2/blob/HEAD/libs/tft_model.py
+    
+    Args:
+        hidden_layer_size: Size of hidden layers
+        output_size: Size of output layer
+        dropout_rate: Dropout rate to apply
+        use_time_distributed: Whether to use TimeDistributed wrapper
+        activation_layer_type: Type of activation function to use
+    """
+
+    def __init__(
+        self,
+        hidden_layer_size: int,
+        output_size: int,
+        dropout_rate: Optional[float] = None,
+        use_time_distributed: bool = False,
+        activation_layer_type: str = "elu",
+        **kwargs
+    ) -> None:
+        """Initialize GRNLayer with specified parameters."""
+        super().__init__(**kwargs)
+        self.hidden_layer_size = hidden_layer_size
+        self.output_size = output_size
+        self.dropout_rate = dropout_rate
+        self.use_time_distributed = use_time_distributed
+        self.activation_layer_type = activation_layer_type
+        
+        self.linear_layer1 = LinearLayer(
+            self.hidden_layer_size,
+            activation=None,
+            use_time_distributed=self.use_time_distributed,
+        )
+        self.linear_layer2 = LinearLayer(
+            self.hidden_layer_size,
+            activation=None,
+            use_time_distributed=self.use_time_distributed,
+        )
+
+        self.activation_layer = tf.keras.layers.Activation(self.activation_layer_type)
+        self.glu_with_addnorm = GLUWithAddNorm(
+            self.output_size, self.dropout_rate, self.use_time_distributed, None
+        )
+
+    def call(self, x: tf.Tensor, training: bool = False) -> tf.Tensor:
+        """
+        Forward pass through GRN layer.
+        
+        Args:
+            x: Input tensor
+            training: Whether in training mode
+            
+        Returns:
+            Output tensor after GRN processing
+        """
+        skip = x
+
+        hidden = self.linear_layer1(x)
+        hidden = self.activation_layer(hidden)
+        hidden = self.linear_layer2(hidden)
+
+        grn_output = self.glu_with_addnorm(skip, hidden)
+
+        return grn_output
+
+    def get_config(self) -> Dict[str, Any]:
+        """Get layer configuration for serialization."""
+        config = super().get_config().copy()
+        config.update({
+            "hidden_layer_size": self.hidden_layer_size,
+            "output_size": self.output_size,
+            "dropout_rate": self.dropout_rate,
+            "use_time_distributed": self.use_time_distributed,
+            "activation_layer_type": self.activation_layer_type,
+        })
+        return config
+
+class GLUWithAddNorm(tf.keras.layers.Layer):
+    """
+    Gated Linear Unit (GLU) with Additive Normalization layer.
+    
+    This layer combines GLU activation with additive normalization,
+    providing gated activation with residual connections.
+    
+    Args:
+        output_layer_size: Size of the output layer
+        dropout_rate: Dropout rate to apply
+        use_time_distributed: Whether to use TimeDistributed wrapper
+        activation: Activation function to use
+    """
+
+    def __init__(
+        self,
+        output_layer_size: int,
+        dropout_rate: Optional[float],
+        use_time_distributed: bool = True,
+        activation: Optional[str] = None,
+        **kwargs
+    ) -> None:
+        """Initialize GLUWithAddNorm layer."""
+        super().__init__(**kwargs)
+        self.output_layer_size = output_layer_size
+        self.dropout_rate = dropout_rate
+        self.use_time_distributed = use_time_distributed
+        self.activation = activation
+        
+        self.linear_layer1 = LinearLayer(
+            self.output_layer_size,
+            activation=None,
+            use_time_distributed=self.use_time_distributed,
+        )
+        self.glu_layer = GLULayer(
+            output_layer_size=self.output_layer_size,
+            dropout_rate=self.dropout_rate,
+            use_time_distributed=self.use_time_distributed,
+            activation=None,
+        )
+        self.add_norm_layer = AddNorm()
+
+    def call(
+        self, skip: tf.Tensor, x: tf.Tensor, training: bool = False
+    ) -> tf.Tensor:
+        """
+        Forward pass through GLU with AddNorm.
+        
+        Args:
+            skip: Skip connection tensor
+            x: Input tensor
+            training: Whether in training mode
+            
+        Returns:
+            Output tensor after GLU and additive normalization
+        """
+        x = self.glu_layer(x)
+        x = self.linear_layer1(x)
+        x = self.add_norm_layer(skip, x)
+        return x
+
+    def get_config(self) -> Dict[str, Any]:
+        """Get layer configuration for serialization."""
+        config = super().get_config().copy()
+        config.update({
+            "output_layer_size": self.output_layer_size,
+            "dropout_rate": self.dropout_rate,
+            "use_time_distributed": self.use_time_distributed,
+            "activation": self.activation,
+        })
+        return config
+
+class AddNorm(tf.keras.layers.Layer):
+    """
+    Additive Normalization layer.
+    
+    This layer performs element-wise addition followed by layer normalization,
+    commonly used in transformer architectures for residual connections.
+    """
+
+    def __init__(self, **kwargs) -> None:
+        """Initialize AddNorm layer."""
+        super().__init__(**kwargs)
+        self.add_layer = tf.keras.layers.Add()
+        self.norm_layer = tf.keras.layers.LayerNormalization()
+
+    def call(
+        self, skip: tf.Tensor, x: tf.Tensor, training: bool = False
+    ) -> tf.Tensor:
+        """
+        Forward pass through AddNorm layer.
+        
+        Args:
+            skip: Skip connection tensor
+            x: Input tensor
+            training: Whether in training mode
+            
+        Returns:
+            Output tensor after addition and normalization
+        """
+        combined = self.add_layer([skip, x])
+        normalized = self.norm_layer(combined)
+        return normalized
+
+    def get_config(self) -> Dict[str, Any]:
+        """Get layer configuration for serialization."""
+        config = super().get_config().copy()
+        return config
 
 
-	def call(self, x, training=False):
-		skip = x
+class GLULayer(tf.keras.layers.Layer):
+    """
+    Gated Linear Unit (GLU) layer.
+    
+    This layer implements the GLU activation function, which uses gating
+    mechanisms to control information flow through the network.
+    
+    Args:
+        output_layer_size: Size of the output layer
+        dropout_rate: Dropout rate to apply
+        use_time_distributed: Whether to use TimeDistributed wrapper
+        activation: Activation function to use
+    """
 
-		hidden = self.linear_layer1(x)
-		hidden = self.activation_layer(hidden)
-		hidden = self.linear_layer2(hidden)
+    def __init__(
+        self,
+        output_layer_size: int,
+        dropout_rate: Optional[float],
+        use_time_distributed: bool = True,
+        activation: Optional[str] = None,
+        **kwargs
+    ) -> None:
+        """Initialize GLULayer with specified parameters."""
+        super().__init__(**kwargs)
+        self.output_layer_size = output_layer_size
+        self.dropout_rate = dropout_rate
+        self.use_time_distributed = use_time_distributed
+        self.activation = activation
+        
+        self.dr_layer = tf.keras.layers.Dropout(self.dropout_rate)
+        self.dense_layer = tf.keras.layers.Dense(
+            self.output_layer_size, activation=self.activation
+        )
+        self.dense_sigmoid_layer = tf.keras.layers.Dense(
+            self.output_layer_size, activation="sigmoid"
+        )
+        self.multiply_layer = tf.keras.layers.Multiply()
+        self.td_layer = tf.keras.layers.TimeDistributed(self.dense_layer)
+        self.td_sigmoid_layer = tf.keras.layers.TimeDistributed(self.dense_sigmoid_layer)
 
-		grn_output = self.gluwithaddnorm(skip, hidden)
-		
-		return grn_output
+    def call(self, x: tf.Tensor, training: bool = False) -> tf.Tensor:
+        """
+        Forward pass through GLU layer.
+        
+        Args:
+            x: Input tensor
+            training: Whether in training mode
+            
+        Returns:
+            Output tensor after GLU activation
+        """
+        if self.dropout_rate is not None:
+            x = self.dr_layer(x, training=training)
 
-	def get_config(self):
-		config = super().get_config().copy()
-		config.update({
-			'hidden_layer_size': self.hidden_layer_size,
-			'output_size': self.output_size,
-			'dropout_rate': self.dropout_rate,
-			'use_time_distributed': self.use_time_distributed,
-			'activation_layer_type': self.activation_layer_type,
-		})
-		return config
+        if self.use_time_distributed:
+            activation_layer = self.td_layer(x)
+            gated_layer = self.td_sigmoid_layer(x)
+        else:
+            activation_layer = self.dense_layer(x)
+            gated_layer = self.dense_sigmoid_layer(x)
 
-class GLU_with_ADDNORM(tf.keras.layers.Layer):
-	def __init__(self, output_layer_size, dropout_rate, use_time_distributed=True, activation=None):
-		super().__init__()
-		self.output_layer_size = output_layer_size
-		self.dropout_rate = dropout_rate
-		self.use_time_distributed = use_time_distributed
-		self.activation = activation
-		self.linear_layer1 = linear_layer(self.output_layer_size,
-										activation=None,
-										use_time_distributed=self.use_time_distributed)
-		self.GLU_layer = GLU_layer(output_layer_size = self.output_layer_size,
-						  dropout_rate = self.dropout_rate,
-						  use_time_distributed = self.use_time_distributed,
-						  activation=None)
-		self.ADD_NORM_layer = ADD_NORM()
-	
-	def call(self, skip, x, training=False):
-		x = self.GLU_layer(x)
-		
-		x = self.linear_layer1(x)
-		
-		x = self.ADD_NORM_layer(skip, x)
-		return x
+        x = self.multiply_layer([activation_layer, gated_layer])
+        return x
 
-	def get_config(self):
-		config = super().get_config().copy()
-		config.update({
-			'output_layer_size': self.output_layer_size,
-			'dropout_rate': self.dropout_rate,
-			'use_time_distributed': self.use_time_distributed,
-			'activation': self.activation,
-		})
-		return config
-
-class ADD_NORM(tf.keras.layers.Layer):
-	def __init__(self):
-		super().__init__()
-		self.add_layer = tf.keras.layers.Add()
-		self.norm_layer = tf.keras.layers.LayerNormalization()
-
-	def call(self, skip, x, training=False):
-		x = [skip, x]
-		tmp = self.add_layer(x)
-		tmp = self.norm_layer(tmp)
-		return tmp
-
-	def get_config(self):
-		config = super().get_config().copy()
-		return config
-
-class GLU_layer(tf.keras.layers.Layer):
-	def __init__(self, output_layer_size, dropout_rate, use_time_distributed=True, activation=None):
-		super().__init__()
-		self.output_layer_size = output_layer_size
-		self.dropout_rate = dropout_rate
-		self.use_time_distributed = use_time_distributed
-		self.activation = activation
-		self.dr_layer = tf.keras.layers.Dropout(self.dropout_rate)
-		self.dense_layer = tf.keras.layers.Dense(self.output_layer_size, activation=self.activation)
-		self.dense_sigmoid_layer = tf.keras.layers.Dense(self.output_layer_size, activation='sigmoid')
-		self.multiply_layer = tf.keras.layers.Multiply()
-		self.td_layer = tf.keras.layers.TimeDistributed(self.dense_layer)
-		self.td_sigmoid_layer = tf.keras.layers.TimeDistributed(self.dense_sigmoid_layer)
-
-	def call(self, x, training=False):
-		if self.dropout_rate is not None:
-			x = self.dr_layer(x, training=training)
-
-		if self.use_time_distributed:
-			activation_layer = self.td_layer(x)
-			gated_layer = self.td_sigmoid_layer(x)
-		else:
-			activation_layer = self.dense_layer(x)
-			gated_layer = self.dense_sigmoid_layer(x)
-
-		x = self.multiply_layer([activation_layer, gated_layer])
-
-		return x
-
-	def get_config(self):
-		config = super().get_config().copy()
-		config.update({
-			'output_layer_size': self.output_layer_size,
-			'dropout_rate': self.dropout_rate,
-			'use_time_distributed': self.use_time_distributed,
-			'activation': self.activation,
-		})
-		return config
+    def get_config(self) -> Dict[str, Any]:
+        """Get layer configuration for serialization."""
+        config = super().get_config().copy()
+        config.update({
+            "output_layer_size": self.output_layer_size,
+            "dropout_rate": self.dropout_rate,
+            "use_time_distributed": self.use_time_distributed,
+            "activation": self.activation,
+        })
+        return config
 
 
 class STATES_MANIPULATION_BLOCK():
@@ -187,7 +369,7 @@ class STATES_MANIPULATION_BLOCK():
 	def __init__(self, d1, states_manipulation_method):
 		self.states_manipulation_method = states_manipulation_method
 		self.conc = tf.keras.layers.Concatenate()
-		self.dense = linear_layer(d1, activation=None, use_time_distributed=False, use_bias=True)
+		self.dense = LinearLayer(d1, activation=None, use_time_distributed=False, use_bias=True)
 		self.add_layer = tf.keras.layers.Add()
 		self.norm_layer = tf.keras.layers.LayerNormalization()
 

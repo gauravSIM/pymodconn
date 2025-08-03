@@ -1,8 +1,8 @@
 import tensorflow as tf
-from pymodconn.utils_layers import GLU_with_ADDNORM
-from pymodconn.utils_layers import linear_layer
-from pymodconn.utils_layers import ADD_NORM
-from pymodconn.utils_layers import GRN_layer
+from pymodconn.utils_layers import GLUWithAddNorm
+from pymodconn.utils_layers import LinearLayer
+from pymodconn.utils_layers import AddNorm
+from pymodconn.utils_layers import GRNLayer
 
 K = tf.keras.backend
 
@@ -37,23 +37,23 @@ class RNN_block_class():
 			rnn_outputs1_allstates = rnn_outputs1[1:]
 
 			if self.IF_NONE_GLUADDNORM_ADDNORM == 0:
-				output_cell = linear_layer(self.all_layers_neurons)(output_cell)
+				output_cell = LinearLayer(self.all_layers_neurons)(output_cell)
 
 			elif self.IF_NONE_GLUADDNORM_ADDNORM == 1:
-				output_cell = GLU_with_ADDNORM(            
+				output_cell = GLUWithAddNorm(            
 									output_layer_size=self.all_layers_neurons,
 									dropout_rate=self.all_layers_dropout,
 									use_time_distributed=False,
 									activation=None)(input_cell, output_cell)
 				
 			elif self.IF_NONE_GLUADDNORM_ADDNORM == 2:
-				output_cell = linear_layer(self.all_layers_neurons)(output_cell)
-				output_cell = ADD_NORM()(input_cell, output_cell)
+				output_cell = LinearLayer(self.all_layers_neurons)(output_cell)
+				output_cell = AddNorm()(input_cell, output_cell)
 
 			output_states = rnn_outputs1_allstates
 			
 			if self.IF_GRN:
-				output_cell = GRN_layer(
+				output_cell = GRNLayer(
 									hidden_layer_size=self.all_layers_neurons,
 									output_size=self.all_layers_neurons,
 									dropout_rate=self.all_layers_dropout,
@@ -101,30 +101,30 @@ class rnn_unit():
 									  layername_prefix = 'First_')
 						
 			if self.IF_NONE_GLUADDNORM_ADDNORM == 1:
-				x = GLU_with_ADDNORM(            #---------------> fix this
+				x = GLUWithAddNorm(
 									output_layer_size=self.all_layers_neurons,
 									dropout_rate=self.all_layers_dropout,
 									use_time_distributed=False,
 									activation=None)(input_cell, x)
 			
 			elif self.IF_NONE_GLUADDNORM_ADDNORM == 2:
-				input_cell = linear_layer(self.all_layers_neurons_rnn * 2)(input_cell)
-				x = ADD_NORM()(input_cell, x)
+				input_cell = LinearLayer(self.all_layers_neurons_rnn * 2)(input_cell)
+				x = AddNorm()(input_cell, x)
 			
 			for i in range(0, self.rnn_depth-2):
 				x = self.single_rnn_layer(
 					x_input=x, init_states=init_states, mid_layer=True, layername_prefix='Mid_%s_' % (i+1))
 				
 				if self.IF_NONE_GLUADDNORM_ADDNORM == 1:
-					x = GLU_with_ADDNORM(            #---------------> fix this
+					x = GLUWithAddNorm(
 										output_layer_size=self.all_layers_neurons,
 										dropout_rate=self.all_layers_dropout,
 										use_time_distributed=False,
 										activation=None)(input_cell, x)
 				
 				elif self.IF_NONE_GLUADDNORM_ADDNORM == 2:
-					input_cell = linear_layer(self.all_layers_neurons_rnn * 2)(input_cell)
-					x = ADD_NORM()(input_cell, x)
+					input_cell = LinearLayer(self.all_layers_neurons_rnn * 2)(input_cell)
+					x = AddNorm()(input_cell, x)
 
 
 			return self.single_rnn_layer(x_input = x, 
@@ -175,4 +175,3 @@ class rnn_unit():
 				return_state=ret_state,
 				name=self.layername)(x_input, initial_state=self.init_state)
 		return x_output
-

@@ -1,8 +1,8 @@
 import tensorflow as tf
 from pymodconn.utils_layers import positional_encoding
 from pymodconn.MHA_block_class_function import MHA_block_class
-from pymodconn.utils_layers import GLU_with_ADDNORM
-from pymodconn.utils_layers import ADD_NORM
+from pymodconn.utils_layers import GLUWithAddNorm
+from pymodconn.utils_layers import AddNorm
 
 K = tf.keras.backend
 
@@ -34,14 +34,14 @@ class CIT_block():
 				self.IF_NONE_GLUADDNORM_ADDNORM = self.cfg['decoder']['IF_NONE_GLUADDNORM_ADDNORM_CIT_1']
 
 				if self.IF_NONE_GLUADDNORM_ADDNORM == 1:
-					output_cell = GLU_with_ADDNORM(            
+					output_cell = GLUWithAddNorm(            
 										output_layer_size=self.all_layers_neurons,
 										dropout_rate=self.all_layers_dropout,
 										use_time_distributed=False,
 										activation=None)(input_cell, output_cell)
 				
 				elif self.IF_NONE_GLUADDNORM_ADDNORM == 2:
-					output_cell = ADD_NORM()(input_cell, output_cell)
+					output_cell = AddNorm()(input_cell, output_cell)
 				input_cell = output_cell
 
 		if self.option == 2:
@@ -60,14 +60,14 @@ class CIT_block():
 				self.IF_NONE_GLUADDNORM_ADDNORM = self.cfg['decoder']['IF_NONE_GLUADDNORM_ADDNORM_CIT_2']
 
 				if self.IF_NONE_GLUADDNORM_ADDNORM == 1:
-					output_cell = GLU_with_ADDNORM(            
+					output_cell = GLUWithAddNorm(            
 										output_layer_size=self.all_layers_neurons,
 										dropout_rate=self.all_layers_dropout,
 										use_time_distributed=False,
 										activation=None)(input_cell, output_cell)
 				
 				elif self.IF_NONE_GLUADDNORM_ADDNORM == 2:
-					output_cell = ADD_NORM()(input_cell, output_cell)	
+					output_cell = AddNorm()(input_cell, output_cell)	
 				input_cell = output_cell	
 
 		if self.option == 3:
@@ -89,4 +89,3 @@ class CIT_block():
 					input_cell = output_cell
 		
 		return output_cell
-

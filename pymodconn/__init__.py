@@ -10,7 +10,7 @@ deep neural networks in a highly modular way.
 """
 from __future__ import annotations
 
-from pymodconn.model_gen import Model_Gen
+from pymodconn.model_gen import ModelGen
 
 __version__ = "2.0.0"
-__all__ = ["Model_Gen"]
+__all__ = ["ModelGen"]

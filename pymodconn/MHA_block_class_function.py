@@ -1,7 +1,7 @@
 import tensorflow as tf
-from pymodconn.utils_layers import GLU_with_ADDNORM
-from pymodconn.utils_layers import ADD_NORM
-from pymodconn.utils_layers import GRN_layer
+from pymodconn.utils_layers import GLUWithAddNorm
+from pymodconn.utils_layers import AddNorm
+from pymodconn.utils_layers import GRNLayer
 
 K = tf.keras.backend
 
@@ -41,24 +41,23 @@ class MHA_block_class():
 										training=True)
 
 			if self.IF_NONE_GLUADDNORM_ADDNORM == 1:
-				output_cell = GLU_with_ADDNORM(            
+				output_cell = GLUWithAddNorm(            
 									output_layer_size=self.all_layers_neurons,
 									dropout_rate=self.all_layers_dropout,
 									use_time_distributed=False,
 									activation=None)(input_q, output_cell)
 			
 			elif self.IF_NONE_GLUADDNORM_ADDNORM == 2:
-				output_cell = ADD_NORM()(input_q, output_cell)
+				output_cell = AddNorm()(input_q, output_cell)
 			
 			if (self.IF_GRN_block == 1) and ((self.enc_or_dec == 'encoder' and self.self_or_crossMHA == 'self') or (self.enc_or_dec == 'decoder' and self.self_or_crossMHA == 'cross')):
-				output_cell = GRN_layer(
+				output_cell = GRNLayer(
 								hidden_layer_size = self.all_layers_neurons,
 								output_size = self.all_layers_neurons,
 								dropout_rate = self.all_layers_dropout,
 								use_time_distributed = True,
-								activation_layer_type = 'elu')(output_cell)					
+								activation_layer_type = 'elu')(output_cell)
 		else:
 			output_cell = input_q
 		
 		return output_cell
-
